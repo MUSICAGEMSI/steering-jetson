@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>vehicle_control</name>
+  <version>0.1.0</version>
+  Integrando Jetson com Steppermotor.</description>
+  <maintainer email="wallace.teixeira@unicamperacing.com.br">Wallace</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Dependências para rodar -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  
+  <!-- Para testes -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+</package>
