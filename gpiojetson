@@ -12,9 +12,9 @@ from datetime import datetime
 class MotorControlGPIO:
     def __init__(self):
         # Pinos físicos (BOARD mode)
-        self.PUL_PIN = 12  # GPIO18
-        self.DIR_PIN = 16  # GPIO23  
-        self.ENA_PIN = 18  # GPIO24
+        self.PUL_PIN = 15  
+        self.DIR_PIN = 18  
+        self.ENA_PIN = 22  
         
         # Configurações do motor
         self.STEPS_PER_REV = 1600  # 200 * 8 (microstepping 1/8)
