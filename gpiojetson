@@ -1,0 +1,108 @@
+# =============================================================================
+# CÓDIGO: GPIO DIRETO - JETSON AGX XAVIER → TB6600
+# =============================================================================
+
+import Jetson.GPIO as GPIO
+import time
+import json
+import psutil
+import os
+from datetime import datetime
+
+class MotorControlGPIO:
+    def __init__(self):
+        # Pinos físicos (BOARD mode)
+        self.PUL_PIN = 12  # GPIO18
+        self.DIR_PIN = 16  # GPIO23  
+        self.ENA_PIN = 18  # GPIO24
+        
+        # Configurações do motor
+        self.STEPS_PER_REV = 1600  # 200 * 8 (microstepping 1/8)
+        self.STEP_DELAY = 0.0005   # 500µs
+        
+        # Métricas
+        self.metrics = {
+            'method': 'GPIO_Direct',
+            'start_time': None,
+            'end_time': None,
+            'total_time': 0,
+            'cpu_usage': [],
+            'movements': [],
+            'errors': 0
+        }
+        
+        self.setup_gpio()
+    
+    def setup_gpio(self):
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(self.PUL_PIN, GPIO.OUT)
+        GPIO.setup(self.DIR_PIN, GPIO.OUT)
+        GPIO.setup(self.ENA_PIN, GPIO.OUT)
+        GPIO.output(self.ENA_PIN, GPIO.LOW)  # Ativa driver
+    
+    def deg_to_steps(self, degrees):
+        return int(degrees * self.STEPS_PER_REV / 360.0)
+    
+    def move_motor(self, degrees):
+        steps = self.deg_to_steps(degrees)
+        if steps == 0:
+            return
+            
+        move_start = time.time()
+        
+        # Define direção
+        direction = GPIO.HIGH if steps > 0 else GPIO.LOW
+        GPIO.output(self.DIR_PIN, direction)
+        time.sleep(0.001)  # Settling time
+        
+        # Executa passos
+        for _ in range(abs(steps)):
+            GPIO.output(self.PUL_PIN, GPIO.HIGH)
+            time.sleep(self.STEP_DELAY)
+            GPIO.output(self.PUL_PIN, GPIO.LOW)
+            time.sleep(self.STEP_DELAY)
+        
+        move_time = time.time() - move_start
+        
+        # Registra movimento
+        self.metrics['movements'].append({
+            'degrees': degrees,
+            'steps': steps,
+            'time': move_time,
+            'steps_per_second': abs(steps) / move_time if move_time > 0 else 0
+        })
+    
+    def run_sequence(self, angles):
+        print(f"[GPIO] Iniciando sequência: {angles}")
+        self.metrics['start_time'] = datetime.now().isoformat()
+        start_time = time.time()
+        
+        try:
+            for i, angle in enumerate(angles):
+                print(f"[GPIO] Movimento {i+1}: {angle}°")
+                
+                # Mede CPU antes do movimento
+                cpu_before = psutil.cpu_percent(interval=0.1)
+                
+                self.move_motor(angle)
+                
+                # Mede CPU após o movimento
+                cpu_after = psutil.cpu_percent(interval=0.1)
+                self.metrics['cpu_usage'].append((cpu_before + cpu_after) / 2)
+                
+                time.sleep(1)  # Pausa entre movimentos
+                
+        except Exception as e:
+            print(f"[GPIO] Erro: {e}")
+            self.metrics['errors'] += 1
+        
+        finally:
+            end_time = time.time()
+            self.metrics['end_time'] = datetime.now().isoformat()
+            self.metrics['total_time'] = end_time - start_time
+            GPIO.cleanup()
+    
+    def save_metrics(self, filename="gpio_metrics.json"):
+        with open(filename, 'w') as f:
+            json.dump(self.metrics, f, indent=2)
+        print(f"[GPIO] Métricas salvas em {filename}")
