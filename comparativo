@@ -1,0 +1,121 @@
+# =============================================================================
+# CÓDIGO COMPARATIVO E ANÁLISE
+# =============================================================================
+
+class PerformanceAnalyzer:
+    def __init__(self):
+        self.results = {}
+    
+    def load_metrics(self, gpio_file="gpio_metrics.json", uart_file="uart_metrics.json"):
+        try:
+            with open(gpio_file, 'r') as f:
+                self.results['gpio'] = json.load(f)
+        except FileNotFoundError:
+            print(f"Arquivo {gpio_file} não encontrado")
+        
+        try:
+            with open(uart_file, 'r') as f:
+                self.results['uart'] = json.load(f)
+        except FileNotFoundError:
+            print(f"Arquivo {uart_file} não encontrado")
+    
+    def analyze(self):
+        if not self.results:
+            print("Nenhum resultado carregado")
+            return
+        
+        analysis = {
+            'comparison': {},
+            'recommendations': []
+        }
+        
+        for method, data in self.results.items():
+            # Calcula estatísticas
+            avg_cpu = sum(data.get('cpu_usage', [])) / len(data.get('cpu_usage', [1]))
+            total_time = data.get('total_time', 0)
+            errors = data.get('errors', 0) + data.get('communication_errors', 0)
+            
+            analysis['comparison'][method] = {
+                'total_time': total_time,
+                'avg_cpu_usage': avg_cpu,
+                'total_errors': errors,
+                'movements_count': len(data.get('movements', [])),
+                'avg_latency': sum(data.get('latency', [])) / len(data.get('latency', [1])) if 'latency' in data else 0
+            }
+        
+        # Gera recomendações
+        if 'gpio' in analysis['comparison'] and 'uart' in analysis['comparison']:
+            gpio_time = analysis['comparison']['gpio']['total_time']
+            uart_time = analysis['comparison']['uart']['total_time']
+            
+            if gpio_time < uart_time:
+                analysis['recommendations'].append("GPIO é mais rápido para esta sequência")
+            else:
+                analysis['recommendations'].append("UART é mais rápido para esta sequência")
+            
+            gpio_cpu = analysis['comparison']['gpio']['avg_cpu_usage']
+            uart_cpu = analysis['comparison']['uart']['avg_cpu_usage']
+            
+            if gpio_cpu < uart_cpu:
+                analysis['recommendations'].append("GPIO usa menos CPU")
+            else:
+                analysis['recommendations'].append("UART usa menos CPU")
+        
+        return analysis
+    
+    def save_analysis(self, analysis, filename="performance_analysis.json"):
+        with open(filename, 'w') as f:
+            json.dump(analysis, f, indent=2)
+        print(f"Análise salva em {filename}")
+
+# =============================================================================
+# EXEMPLO DE USO
+# =============================================================================
+
+if __name__ == "__main__":
+    # Sequência de teste
+    test_angles = [-45, 90, 20, 0, -45]
+    
+    print("=== TESTE COMPARATIVO MOTOR NEMA23 ===\n")
+    
+    # Teste GPIO
+    print("1. Testando GPIO Direto...")
+    gpio_controller = MotorControlGPIO()
+    gpio_controller.run_sequence(test_angles)
+    gpio_controller.save_metrics()
+    
+    print("\n" + "="*50 + "\n")
+    
+    # Teste UART
+    print("2. Testando UART com ESP32...")
+    uart_controller = MotorControlUART()
+    uart_controller.run_sequence(test_angles)
+    uart_controller.save_metrics()
+    
+    print("\n" + "="*50 + "\n")
+    
+    # Análise comparativa
+    print("3. Analisando resultados...")
+    analyzer = PerformanceAnalyzer()
+    analyzer.load_metrics()
+    analysis = analyzer.analyze()
+    analyzer.save_analysis(analysis)
+    
+    # Exibe resumo
+    print("\n=== RESUMO DA ANÁLISE ===")
+    for method, stats in analysis['comparison'].items():
+        print(f"\n{method.upper()}:")
+        print(f"  Tempo total: {stats['total_time']:.2f}s")
+        print(f"  CPU médio: {stats['avg_cpu_usage']:.1f}%")
+        print(f"  Erros: {stats['total_errors']}")
+        if stats['avg_latency'] > 0:
+            print(f"  Latência média: {stats['avg_latency']*1000:.1f}ms")
+    
+    print("\nRECOMENDAÇÕES:")
+    for rec in analysis['recommendations']:
+        print(f"  • {rec}")
+    
+    print(f"\nArquivos gerados:")
+    print("  • gpio_metrics.json")
+    print("  • uart_metrics.json") 
+    print("  • performance_analysis.json")
